@@ -8,6 +8,7 @@ set(BOOST_MIN_VERSION "1.70.0")
 
 find_package(Boost REQUIRED COMPONENTS iostreams)
 
-add_executable(datafeed src/main.cpp)
+add_executable(datafeed src/main.cpp src/parser.cpp)
+include_directories(include)
 target_include_directories(datafeed PUBLIC ${Boost_INCLUDE_DIRS})
 target_link_libraries(datafeed ${Boost_LIBRARIES})
