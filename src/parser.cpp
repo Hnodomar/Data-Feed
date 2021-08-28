@@ -33,7 +33,7 @@ bool Parser::parseMessage() {
             executeOrder();
             break;
         case 'C':
-            cancelOrder();
+            executeOrderPrice();
             break;
         case 'X':
             cancelOrder();
@@ -71,6 +71,7 @@ inline void Parser::executeOrder() {
     uint32_t timestamp = parseSixBytes(buffer_ + 5);
     uint64_t reference = parseEightBytes(buffer_ + 11);
     uint32_t num_shares = parseFourBytes(buffer_ + 19);
+    feedhandler_.executeOrder(reference, num_shares);
 }
 
 inline void Parser::executeOrderPrice() {
@@ -78,17 +79,20 @@ inline void Parser::executeOrderPrice() {
     uint64_t reference = parseEightBytes(buffer_ + 11);
     uint32_t num_shares = parseFourBytes(buffer_ + 19);
     uint32_t price = parseFourBytes(buffer_ + 32);
+    feedhandler_.executeOrder(reference, num_shares);
 }
 
 inline void Parser::cancelOrder() {
     uint32_t timestamp = parseSixBytes(buffer_ + 5);
     uint64_t reference = parseEightBytes(buffer_ + 11);
     uint32_t num_shares = parseFourBytes(buffer_ + 19);
+    feedhandler_.cancelOrder(reference, num_shares);
 }
 
 inline void Parser::deleteOrder() {
     uint32_t timestamp = parseSixBytes(buffer_ + 5);
     uint64_t reference = parseEightBytes(buffer_ + 11);
+    feedhandler_.deleteOrder(reference);
 }
 
 inline void Parser::replaceOrder() {
@@ -97,4 +101,5 @@ inline void Parser::replaceOrder() {
     uint64_t new_reference = parseEightBytes(buffer_ + 19);
     uint32_t num_shares = parseFourBytes(buffer_ + 27);
     uint32_t price = parseFourBytes(buffer_ + 31);
+    feedhandler_.replaceOrder(reference, new_reference, num_shares, price);
 }
