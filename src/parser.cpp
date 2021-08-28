@@ -1,8 +1,7 @@
 #include "parser.hpp"
 
-
-Parser::Parser(const std::string& filename):
-    itch_data_(filename), 
+Parser::Parser(const std::string& filename, FeedHandler<Parser>& feedhandler):
+    itch_data_(filename), feedhandler_(feedhandler), 
     itch_data_ptr_(reinterpret_cast<const uint8_t*>(itch_data_.data())),
     itch_data_end_ptr_(reinterpret_cast<const uint8_t*>((itch_data_.data() + itch_data_.size()))) {
     if (!itch_data_.is_open()) {
@@ -34,16 +33,16 @@ bool Parser::parseMessage() {
             executeOrder();
             break;
         case 'C':
-            //cancelOrder();
+            cancelOrder();
             break;
         case 'X':
-            //cancelOrder();
+            cancelOrder();
             break;
         case 'D':
-            //deleteOrder();
+            deleteOrder();
             break;
         case 'U':
-            //replaceOrder();
+            replaceOrder();
             break;
     }
     return true;
@@ -63,6 +62,9 @@ inline void Parser::addOrder() {
     uint32_t num_shares = parseFourBytes(buffer_ + 20);
     uint64_t ticker = parseEightBytes(buffer_ + 24);
     uint32_t price = parseFourBytes(buffer_ + 32);
+    feedhandler_.addOrder(
+        reference, side, num_shares, ticker, price
+    );
 }
 
 inline void Parser::executeOrder() {

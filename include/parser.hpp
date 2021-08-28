@@ -4,11 +4,11 @@
 #include <string>
 #include <boost/iostreams/device/mapped_file.hpp>
 #include <iostream>
-#include <arpa/inet.h>
+#include "feedhandler.hpp"
 
 class Parser {
     public:
-    Parser(const std::string& filename);
+    Parser(const std::string& filename, FeedHandler<Parser>& feedhandler);
     
     private:
     bool parseFile();
@@ -49,7 +49,8 @@ class Parser {
             *reinterpret_cast<const uint64_t*>(buffer)
         );
     }
-
+    
+    FeedHandler<Parser>& feedhandler_;
     boost::iostreams::mapped_file_source itch_data_;
     const uint8_t* itch_data_ptr_;
     const uint8_t* itch_data_end_ptr_;
