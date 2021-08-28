@@ -9,9 +9,8 @@
 class Parser {
     public:
     Parser(const std::string& filename, FeedHandler<Parser>& feedhandler);
-    
-    private:
     bool parseFile();
+    private:
     bool parseMessage();
     inline void copyMsgFromMap(uint16_t len);
     inline void addOrder();

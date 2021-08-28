@@ -22,9 +22,10 @@ class FeedHandler {
         uint32_t shares, uint64_t ticker, uint32_t price) {
             auto itr = order_books_.find(ticker);
             if (itr == order_books_.end()) {
-                itr = order_books_.emplace(ticker, OrderBook());
+                order_books_.emplace(ticker, OrderBook());
             }
-            itr->second.updateBookAdd(side, shares, price);
+            auto itrtwo = order_books_.find(ticker);
+            itrtwo->second.updateBookAdd(side, shares, price);
             orders_.emplace(reference, Order(price, shares, ticker, side));
         }
         void executeOrder(uint64_t reference, uint32_t num_shares) {
@@ -34,12 +35,13 @@ class FeedHandler {
             if (books_itr == order_books_.end()) return;
             books_itr->second.updateBookRemove(orders_itr->second.side, orders_itr->second.price, num_shares);
             orders_itr->second.shares -= num_shares;
-            if (orders_itr->second.shares <= 0) erase(itr);
+            if (orders_itr->second.shares <= 0) 
+                orders_.erase(orders_itr);
         }
         void cancelOrder(uint64_t reference, uint32_t num_shares) {
             auto orders_itr = orders_.find(reference);
             if (orders_itr == orders_.end()) return;
-            auto books_itr = order_books_.find(itr->second.ticker);
+            auto books_itr = order_books_.find(orders_itr->second.ticker);
             orders_itr->second.shares -= num_shares;
             if (orders_itr->second.shares <= 0) orders_.erase(orders_itr);
             if (books_itr == order_books_.end()) return;
@@ -54,7 +56,7 @@ class FeedHandler {
             books_itr->second.updateBookRemove(
                 orders_itr->second.side, 
                 orders_itr->second.price, 
-                orders_itr->second.num_shares
+                orders_itr->second.shares
             );
         }
         void replaceOrder(uint64_t reference, uint64_t new_reference,
@@ -63,7 +65,7 @@ class FeedHandler {
             if (orders_itr == orders_.end())
                 return;
             orders_.emplace(new_reference, 
-                Order(price, num_shares, orders_itr->ticker, orders_itr->side)
+                Order(price, num_shares, orders_itr->second.ticker, orders_itr->second.side)
             );
             auto book_itr = order_books_.find(orders_itr->second.ticker);
             if (book_itr == order_books_.end()) {
