@@ -6,7 +6,7 @@ set(CMAKE_CXX_FLAGS "-std=c++17 -Wall")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3")
 set(BOOST_MIN_VERSION "1.70.0")
 
-find_package(Boost REQUIRED COMPONENTS iostreams)
+find_package(Boost REQUIRED COMPONENTS iostreams container)
 
 add_executable(datafeed src/main.cpp src/parser.cpp)
 include_directories(include)

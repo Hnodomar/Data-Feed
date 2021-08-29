@@ -3,6 +3,8 @@
 
 #include <unordered_map>
 #include <string>
+#include <boost/variant/variant.hpp>
+#include <boost/functional/hash.hpp>
 
 #include "orderbook.hpp"
 #include "order.hpp"
@@ -18,14 +20,24 @@ class FeedHandler {
         void start() {
             parser_.parseFile();
         }
+        void setupLoggingBooks(std::vector<std::string>& tickers) {
+            //for (const auto& tickstr : tickers)
+                //order_books_.emplace(tickstr, OrderBook<Output::Logging>());
+        }
         void addOrder(uint64_t reference, uint8_t side, 
         uint32_t shares, uint64_t ticker, uint32_t price) {
             auto itr = order_books_.find(ticker);
             if (itr == order_books_.end()) {
-                order_books_.emplace(ticker, OrderBook());
+                order_books_.emplace(ticker, OrderBook<Output::NoLogging>());
             }
             auto itrtwo = order_books_.find(ticker);
-            itrtwo->second.updateBookAdd(side, shares, price);
+            boost::apply_visitor(
+                [&](auto& book) {
+                    book.updateBookAdd(side, shares, price);
+                },
+                itrtwo->second
+            );
+            //itrtwo->second.updateBookAdd(side, shares, price);
             orders_.emplace(reference, Order(price, shares, ticker, side));
         }
         void executeOrder(uint64_t reference, uint32_t num_shares) {
@@ -33,7 +45,21 @@ class FeedHandler {
             if (orders_itr == orders_.end()) return;
             auto books_itr = order_books_.find(orders_itr->second.ticker);
             if (books_itr == order_books_.end()) return;
-            books_itr->second.updateBookRemove(orders_itr->second.side, orders_itr->second.price, num_shares);
+            boost::apply_visitor(
+                [&orders_itr, &num_shares](auto& book) {
+                    book.updateBookRemove(
+                        orders_itr->second.side,
+                        num_shares,
+                        orders_itr->second.price
+                    );
+                },
+                books_itr->second
+            );
+            /*books_itr->second.updateBookRemove(
+                orders_itr->second.side, 
+                num_shares, 
+                orders_itr->second.price
+            );*/
             orders_itr->second.shares -= num_shares;
             if (orders_itr->second.shares <= 0) 
                 orders_.erase(orders_itr);
@@ -45,7 +71,21 @@ class FeedHandler {
             orders_itr->second.shares -= num_shares;
             if (orders_itr->second.shares <= 0) orders_.erase(orders_itr);
             if (books_itr == order_books_.end()) return;
-            books_itr->second.updateBookRemove(orders_itr->second.side, orders_itr->second.price, num_shares);
+            boost::apply_visitor(
+                [&orders_itr](auto& book) {
+                    book.updateBookRemove(
+                        orders_itr->second.side,
+                        orders_itr->second.shares,
+                        orders_itr->second.price
+                    );
+                },
+                books_itr->second
+            );
+            /*books_itr->second.updateBookRemove(
+                orders_itr->second.side, 
+                num_shares, 
+                orders_itr->second.price
+            );*/
         }
         void deleteOrder(uint64_t reference) {
             auto orders_itr = orders_.find(reference);
@@ -53,11 +93,21 @@ class FeedHandler {
             auto books_itr = order_books_.find(orders_itr->second.ticker);
             orders_.erase(orders_itr);
             if (books_itr == order_books_.end()) return;
-            books_itr->second.updateBookRemove(
-                orders_itr->second.side, 
-                orders_itr->second.price, 
-                orders_itr->second.shares
+            boost::apply_visitor(
+                [&orders_itr](auto& book) {
+                    book.updateBookRemove(
+                        orders_itr->second.side,
+                        orders_itr->second.shares,
+                        orders_itr->second.price
+                    );
+                },
+                books_itr->second
             );
+            /*books_itr->second.updateBookRemove(
+                orders_itr->second.side,
+                orders_itr->second.shares, 
+                orders_itr->second.price
+            );*/
         }
         void replaceOrder(uint64_t reference, uint64_t new_reference,
         uint32_t num_shares, uint32_t price) {
@@ -72,22 +122,49 @@ class FeedHandler {
                 orders_.erase(orders_itr);
                 return;
             }
-            book_itr->second.updateBookRemove(
+            boost::apply_visitor(
+                [&orders_itr, num_shares, price](auto& book) {
+                    book.updateBookRemove(
+                        orders_itr->second.side,
+                        orders_itr->second.shares,
+                        orders_itr->second.price
+                    );
+                    book.updateBookAdd(
+                        orders_itr->second.side,
+                        num_shares,
+                        price
+                    );
+                },
+                book_itr->second
+            );
+            /*book_itr->second.updateBookRemove(
                 orders_itr->second.side,
-                orders_itr->second.price,
-                orders_itr->second.shares
+                orders_itr->second.shares,
+                orders_itr->second.price
             );
             book_itr->second.updateBookAdd(
                 orders_itr->second.side,
                 num_shares,
                 price
-            );
+            );*/
             orders_.erase(orders_itr);
         }
     private:
-        OutboundParser parser_;
+        /*struct OrderBookFns : public boost::static_visitor<> {
+            OrderBookFns(void (OrderBook::fn)()) : update_fn(fn) {}
+            template<typename T>
+            void operator() (T& book) const {
+                book.*update_fn();
+            }
+            void (*update_fn)();
+        };*/
 
-        std::unordered_map<ticker, OrderBook> order_books_; 
+        OutboundParser parser_;
+        using OrderBookTypes = boost::variant<
+            OrderBook<Output::Logging>,
+            OrderBook<Output::NoLogging>
+        >;
+        std::unordered_map<ticker, OrderBookTypes> order_books_; 
         std::unordered_map<ref, Order> orders_;
 };
 
