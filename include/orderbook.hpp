@@ -1,10 +1,11 @@
 #ifndef BOOK_HPP
 #define BOOK_HPP
 
-#include <unordered_map>
 #include <map>
 #include <cstdint>
 #include <iostream>
+#include <memory>
+#include <fstream>
 
 enum class Output { Logging, NoLogging };
 
@@ -14,8 +15,20 @@ using size = uint64_t;
 template<Output T>
 class OrderBook {
     public:
+        OrderBook() = default;
+        OrderBook(uint64_t ticker, std::size_t len);
         void updateBookAdd(uint8_t side, uint32_t shares, uint32_t price);
         void updateBookRemove(uint8_t side, uint32_t shares, uint32_t price);
+        friend std::ostream& operator<<(std::ostream& lhs, const OrderBook<T>& rhs) {
+            lhs << " [BIDS]: " << std::endl;
+            for (auto itr = rhs.bids_.begin(); itr != rhs.bids_.end(); ++itr)
+                lhs << itr->second << std::endl;
+            lhs << " [ASKS]: " << std::endl;
+            for (auto itr = rhs.asks_.begin(); itr != rhs.asks_.end(); ++itr)
+                lhs << itr->second << std::endl;
+            return lhs;
+        }
+    private:
         void addToBook(uint8_t& side, uint32_t& shares, uint32_t& price) {
             if (side == 'B') bids_[price] += shares;
             else asks_[price] += shares;
@@ -27,18 +40,23 @@ class OrderBook {
                 return;
             itr->second -= shares;
         }
-        friend std::ostream& operator<<(std::ostream& lhs, const OrderBook& rhs) {
-            return lhs;
+        void output(uint8_t side, int32_t shares, uint32_t price) {
+            outputstream_ << side << ' ' << shares << ' ' << price << '\n';
         }
-    private:
         std::map<price, size> asks_, bids_;
+        std::fstream outputstream_;
 };
+
+template<>
+inline OrderBook<Output::Logging>::OrderBook(uint64_t ticker, std::size_t len) :
+    outputstream_(std::fstream(std::string((char*)&ticker, len), std::ios_base::out)) 
+{}
 
 template<>
 inline void OrderBook<Output::Logging>::updateBookAdd(
 uint8_t side, uint32_t shares, uint32_t price) {
     addToBook(side, shares, price);
-    //log
+    output(side, shares, price);
 }
 
 template<>
@@ -50,8 +68,8 @@ uint8_t side, uint32_t shares, uint32_t price) {
 template<>
 inline void OrderBook<Output::Logging>::updateBookRemove(
 uint8_t side, uint32_t shares, uint32_t price) {
-   removeFromBook(side, shares, price);
-   //log
+    removeFromBook(side, shares, price);
+    output(side, -shares, price);
 }
 
 template<>

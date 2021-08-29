@@ -20,19 +20,17 @@ class Parser {
     inline void executeOrderPrice();
     inline void deleteOrder();
 
-    uint16_t parseTwoBytes(const uint8_t* buffer) {
+    uint16_t parseTwoBytesSwap(const uint8_t* buffer) {
         return __builtin_bswap16(
             *reinterpret_cast<const uint16_t*>(buffer)
         );
     }
-
-    uint32_t parseFourBytes(const uint8_t* buffer) {
+    uint32_t parseFourBytesSwap(const uint8_t* buffer) {
         return __builtin_bswap32(
             *reinterpret_cast<const uint32_t*>(buffer)
         );
     }
-
-    uint64_t parseSixBytes(const uint8_t* buffer) {
+    uint64_t parseSixBytesSwap(const uint8_t* buffer) {
         uint64_t ret = 
             ((uint64_t)buffer[0] << 40) |
             ((uint64_t)buffer[1] << 32) |
@@ -42,13 +40,21 @@ class Parser {
             ((uint64_t)buffer[5] << 0);
         return ret;
     }
-
-    uint64_t parseEightBytes(const uint8_t* buffer) {
+    uint64_t parseEightBytesSwap(const uint8_t* buffer) {
         return __builtin_bswap64(
             *reinterpret_cast<const uint64_t*>(buffer)
         );
     }
-    
+    uint16_t parseTwoBytes(const uint8_t* buffer) {
+        return *reinterpret_cast<const uint16_t*>(buffer);
+    }
+    uint32_t parseFourBytes(const uint8_t* buffer) {
+        return *reinterpret_cast<const uint32_t*>(buffer);
+    }
+    uint64_t parseEightBytes(const uint8_t* buffer) {
+        return *reinterpret_cast<const uint64_t*>(buffer);
+    }
+
     FeedHandler<Parser>& feedhandler_;
     boost::iostreams::mapped_file_source itch_data_;
     const uint8_t* itch_data_ptr_;
