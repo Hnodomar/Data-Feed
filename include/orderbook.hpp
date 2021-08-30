@@ -35,15 +35,7 @@ class OrderBook : private BaseOrderBook {
     public:
         void updateBookAdd(uint8_t side, uint32_t shares, uint32_t price);
         void updateBookRemove(uint8_t side, uint32_t shares, uint32_t price);
-        friend std::ostream& operator<<(std::ostream& lhs, const OrderBook<T>& rhs) {
-            lhs << " [BIDS]: " << std::endl;
-            for (auto itr = rhs.bids_.begin(); itr != rhs.bids_.end(); ++itr)
-                lhs << itr->second << std::endl;
-            lhs << " [ASKS]: " << std::endl;
-            for (auto itr = rhs.asks_.begin(); itr != rhs.asks_.end(); ++itr)
-                lhs << itr->second << std::endl;
-            return lhs;
-        }
+        friend std::ostream& operator<<(std::ostream& lhs, const BaseOrderBook*& rhs);
 };
 
 template<>
@@ -52,15 +44,7 @@ class OrderBook<Output::Logging> : private BaseOrderBook {
     OrderBook(uint64_t ticker, std::size_t len) :
         outputstream_(std::fstream(std::string((char*)&ticker, len), std::ios_base::out)) 
     {}
-    friend std::ostream& operator<<(std::ostream& lhs, const OrderBook<Output::Logging>& rhs) {
-        lhs << " [BIDS]: " << std::endl;
-        for (auto itr = rhs.bids_.begin(); itr != rhs.bids_.end(); ++itr)
-            lhs << itr->second << std::endl;
-        lhs << " [ASKS]: " << std::endl;
-        for (auto itr = rhs.asks_.begin(); itr != rhs.asks_.end(); ++itr)
-            lhs << itr->second << std::endl;
-        return lhs;
-    }
+    friend std::ostream& operator<<(std::ostream& lhs, const BaseOrderBook*& rhs);
     void updateBookAdd(uint8_t side, uint32_t shares, uint32_t price) {
         addToBook(side, shares, price);
         output(side, shares, price);
@@ -86,6 +70,16 @@ template<>
 inline void OrderBook<Output::NoLogging>::updateBookRemove(
 uint8_t side, uint32_t shares, uint32_t price) {
     removeFromBook(side, shares, price);
+}
+
+inline std::ostream& operator<<(std::ostream& lhs, const BaseOrderBook*& rhs) {
+    lhs << " [BIDS]: " << std::endl;
+    for (auto itr = rhs->bids_.begin(); itr != rhs->bids_.end(); ++itr)
+        lhs << itr->second << std::endl;
+    lhs << " [ASKS]: " << std::endl;
+    for (auto itr = rhs->asks_.begin(); itr != rhs->asks_.end(); ++itr)
+        lhs << itr->second << std::endl;
+    return lhs;
 }
 
 #endif
