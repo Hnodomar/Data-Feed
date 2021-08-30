@@ -34,7 +34,7 @@ class FeedHandler {
             }
         }
         void addOrder(uint64_t reference, uint8_t side, 
-        uint32_t shares, uint64_t ticker, uint32_t price) {
+        int32_t shares, uint64_t ticker, uint32_t price) {
             auto itr = order_books_.find(ticker);
             if (itr == order_books_.end()) {
                 itr = order_books_.emplace(ticker, OrderBook<Output::NoLogging>()).first;
@@ -49,7 +49,7 @@ class FeedHandler {
                 reference, Order(price, shares, ticker, side)
             ));
         }
-        void executeOrder(uint64_t reference, uint32_t num_shares) {
+        void executeOrder(uint64_t reference, int32_t num_shares) {
             auto orders_itr = orders_.find(reference);
             if (orders_itr == orders_.end()) return;
             auto books_itr = order_books_.find(orders_itr->second.ticker);
@@ -68,12 +68,11 @@ class FeedHandler {
             if (orders_itr->second.shares <= 0) 
                 orders_.erase(orders_itr);
         }
-        void cancelOrder(uint64_t reference, uint32_t num_shares) {
+        void cancelOrder(uint64_t reference, int32_t num_shares) {
             auto orders_itr = orders_.find(reference);
             if (orders_itr == orders_.end()) return;
             auto books_itr = order_books_.find(orders_itr->second.ticker);
             orders_itr->second.shares -= num_shares;
-            if (orders_itr->second.shares <= 0) orders_.erase(orders_itr);
             if (books_itr == order_books_.end()) return;
             boost::apply_visitor(
                 [&orders_itr, num_shares](auto& book) {
@@ -85,12 +84,12 @@ class FeedHandler {
                 },
                 books_itr->second
             );
+            if (orders_itr->second.shares <= 0) orders_.erase(orders_itr);
         }
         void deleteOrder(uint64_t reference) {
             auto orders_itr = orders_.find(reference);
             if (orders_itr == orders_.end()) return;
             auto books_itr = order_books_.find(orders_itr->second.ticker);
-            orders_.erase(orders_itr);
             if (books_itr == order_books_.end()) return;
             boost::apply_visitor(
                 [&orders_itr](auto& book) {
@@ -102,9 +101,10 @@ class FeedHandler {
                 },
                 books_itr->second
             );
+            orders_.erase(orders_itr);
         }
         void replaceOrder(uint64_t reference, uint64_t new_reference,
-        uint32_t num_shares, uint32_t price) {
+        int32_t num_shares, uint32_t price) {
             auto orders_itr = orders_.find(reference);
             if (orders_itr == orders_.end())
                 return;

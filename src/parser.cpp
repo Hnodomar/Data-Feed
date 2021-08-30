@@ -54,7 +54,7 @@ inline void Parser::copyMsgFromMap(uint16_t len) {
 inline void Parser::addOrder() {
     uint64_t reference = parseEightBytesSwap(buffer_ + 11);
     uint8_t side = buffer_[19];
-    uint32_t num_shares = parseFourBytesSwap(buffer_ + 20);
+    int32_t num_shares = parseFourBytesSwap(buffer_ + 20);
     uint64_t ticker = parseEightBytes(buffer_ + 24);
     uint32_t price = parseFourBytesSwap(buffer_ + 32);
     feedhandler_.addOrder(
@@ -64,20 +64,20 @@ inline void Parser::addOrder() {
 
 inline void Parser::executeOrder() {
     uint64_t reference = parseEightBytesSwap(buffer_ + 11);
-    uint32_t num_shares = parseFourBytesSwap(buffer_ + 19);
+    int32_t num_shares = parseFourBytesSwap(buffer_ + 19);
     feedhandler_.executeOrder(reference, num_shares);
 }
 
 inline void Parser::executeOrderPrice() {
     uint64_t reference = parseEightBytesSwap(buffer_ + 11);
-    uint32_t num_shares = parseFourBytesSwap(buffer_ + 19);
+    int32_t num_shares = parseFourBytesSwap(buffer_ + 19);
     //uint32_t price = parseFourBytesSwap(buffer_ + 32);
     feedhandler_.executeOrder(reference, num_shares);
 }
 
 inline void Parser::cancelOrder() {
     uint64_t reference = parseEightBytesSwap(buffer_ + 11);
-    uint32_t num_shares = parseFourBytesSwap(buffer_ + 19);
+    int32_t num_shares = parseFourBytesSwap(buffer_ + 19);
     feedhandler_.cancelOrder(reference, num_shares);
 }
 
@@ -89,7 +89,7 @@ inline void Parser::deleteOrder() {
 inline void Parser::replaceOrder() {
     uint64_t reference = parseEightBytesSwap(buffer_ + 11);
     uint64_t new_reference = parseEightBytesSwap(buffer_ + 19);
-    uint32_t num_shares = parseFourBytesSwap(buffer_ + 27);
+    int32_t num_shares = parseFourBytesSwap(buffer_ + 27);
     uint32_t price = parseFourBytesSwap(buffer_ + 31);
     feedhandler_.replaceOrder(reference, new_reference, num_shares, price);
 }

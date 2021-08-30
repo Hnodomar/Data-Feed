@@ -14,11 +14,11 @@ using price = uint64_t;
 using size = int64_t;
 
 struct BaseOrderBook {
-    void addToBook(uint8_t& side, uint32_t& shares, uint32_t& price) {
+    void addToBook(uint8_t& side, int32_t& shares, uint32_t& price) {
         if (side == 'B') bids_[price] += shares;
         else asks_[price] += shares;
     }
-    void removeFromBook(uint8_t& side, uint32_t& shares, uint32_t& price) {
+    void removeFromBook(uint8_t& side, int32_t& shares, uint32_t& price) {
         auto& book_side = (side == 'B' ? bids_ : asks_);
         auto itr = book_side.find(price);
         if (itr == book_side.end())
@@ -33,9 +33,13 @@ struct BaseOrderBook {
 template<Output T>
 class OrderBook : private BaseOrderBook {
     public:
-        void updateBookAdd(uint8_t side, uint32_t shares, uint32_t price);
-        void updateBookRemove(uint8_t side, uint32_t shares, uint32_t price);
-        friend std::ostream& operator<<(std::ostream& lhs, const BaseOrderBook*& rhs);
+    void updateBookAdd(uint8_t side, int32_t shares, uint32_t price) {
+        addToBook(side, shares, price);
+    }
+    void updateBookRemove(uint8_t side, int32_t shares, uint32_t price) {
+        removeFromBook(side, shares, price);
+    }
+    friend std::ostream& operator<<(std::ostream& lhs, const BaseOrderBook*& rhs);
 };
 
 template<>
@@ -45,32 +49,20 @@ class OrderBook<Output::Logging> : private BaseOrderBook {
         outputstream_(std::fstream(std::string((char*)&ticker, len), std::ios_base::out)) 
     {}
     friend std::ostream& operator<<(std::ostream& lhs, const BaseOrderBook*& rhs);
-    void updateBookAdd(uint8_t side, uint32_t shares, uint32_t price) {
+    void updateBookAdd(uint8_t side, int32_t shares, uint32_t price) {
         addToBook(side, shares, price);
         output(side, shares, price);
     }
-    void updateBookRemove(uint8_t side, uint32_t shares, uint32_t price) {
+    void updateBookRemove(uint8_t side, int32_t shares, uint32_t price) {
         removeFromBook(side, shares, price);
         output(side, -shares, price);
     }
     private:
     void output(uint8_t side, int32_t shares, uint32_t price) {
-        outputstream_ << side << ' ' << shares << ' ' << price << '\n';
+        outputstream_ << side << ',' << shares << ',' << price << '\n';
     }
     std::fstream outputstream_;
 };
-
-template<>
-inline void OrderBook<Output::NoLogging>::updateBookAdd(
-uint8_t side, uint32_t shares, uint32_t price) {
-    addToBook(side, shares, price);
-}
-
-template<>
-inline void OrderBook<Output::NoLogging>::updateBookRemove(
-uint8_t side, uint32_t shares, uint32_t price) {
-    removeFromBook(side, shares, price);
-}
 
 inline std::ostream& operator<<(std::ostream& lhs, const BaseOrderBook*& rhs) {
     lhs << " [BIDS]: " << std::endl;
