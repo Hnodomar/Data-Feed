@@ -37,14 +37,13 @@ class FeedHandler {
         uint32_t shares, uint64_t ticker, uint32_t price) {
             auto itr = order_books_.find(ticker);
             if (itr == order_books_.end()) {
-                order_books_.emplace(ticker, OrderBook<Output::NoLogging>());
+                itr = order_books_.emplace(ticker, OrderBook<Output::NoLogging>()).first;
             }
-            auto itrtwo = order_books_.find(ticker);
             boost::apply_visitor(
                 [&](auto& book) {
                     book.updateBookAdd(side, shares, price);
                 },
-                itrtwo->second
+                itr->second
             );
             orders_.emplace(std::make_pair(
                 reference, Order(price, shares, ticker, side)
@@ -136,7 +135,7 @@ class FeedHandler {
         }
     private:
         /*struct OrderBookFns : public boost::static_visitor<> {
-            OrderBookFns(void (OrderBook::fn)()) : update_fn(fn) {}
+            OrderBookFns(void (OrderBook::updateBookAdd fn)()) : update_fn(fn) {}
             template<typename T>
             void operator() (T& book) const {
                 book.*update_fn();
