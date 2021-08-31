@@ -29,15 +29,15 @@ def checkLevels(dict, price, shares, num_levels, side):
             dict[price] = shares
             return True
         return False
-    elif side == 'B':
+    elif side == 'B' and shares >= 0:
         minkey = getMinKey(dict)
-        if price > minkey and shares >= 0:
+        if price > minkey:
             del dict[minkey]
             dict[price] = shares
             return True
-    elif side == 'S':
+    elif side == 'S' and shares >= 0:
         maxkey = getMaxKey(dict)
-        if price < maxkey and shares >= 0:
+        if price < maxkey:
             del dict[maxkey]
             dict[price] = shares
             return True
@@ -67,6 +67,9 @@ class dynamicBarPlot():
         self.ax.bar([],[])
         self.ax.set_xlim(0, 100)
         self.ax.grid()
+        self.minx = 200000
+        self.maxx = -1
+        self.width = 0.05
 
     def getBounds(self, levels):
         ask_prices = np.array(list(levels['asks']))
@@ -84,10 +87,19 @@ class dynamicBarPlot():
     def getWidth(self, prices):
         if len(prices) < 2:
             return 0.05
-        print(len(prices))
-        #print(share_nums)
-        width = np.diff(np.unique(prices)).min() / 2
         return np.diff(np.unique(prices)).min() / 2
+
+    def getMinOrMaxVal(self, arr, get_min):
+        if get_min:
+            try:
+                return min(arr)
+            except:
+                return 0
+        else:
+            try:
+                return max(arr)
+            except:
+                return 0
 
     def onRunning(self, levels):
         ask_sizes = list(levels['asks'].values())
@@ -104,15 +116,21 @@ class dynamicBarPlot():
             self.ax.bar(ask_prices, ask_sizes, width=width, color='red')
         if len(bid_sizes) != 0:
             self.ax.bar(bid_prices, bid_sizes, width=width, color='green')
-        minx, maxx = self.getBounds(levels)
-        self.ax.set_xlim(minx, maxx)
+        if self.minx > self.getMinOrMaxVal(bid_prices, True) or self.maxx < self.getMinOrMaxVal(ask_prices, False):
+            self.minx, self.maxx = self.getBounds(levels)
+            ideal_width = width * 12
+            if (self.maxx - self.minx) < ideal_width:
+                remainder = ideal_width - (self.maxx - self.minx)
+                self.maxx += remainder / 2
+                self.minx -= remainder / 2
+            self.ax.set_xlim(self.minx, self.maxx)
         self.figure.canvas.draw()
         self.figure.canvas.flush_events()
-        time.sleep(0.01)
+        time.sleep(0.2)
     
     def __call__(self):
         self.initBar()
-        readFile(self.onRunning, 5)
+        readFile(self.onRunning, 10)
 
 def main():
     plt.ion()
