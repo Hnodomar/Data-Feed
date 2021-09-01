@@ -91,7 +91,7 @@ struct BaseParser {
 template <SkipLogging T> class Parser;
 
 template <>
-class Parser<SkipLogging::NoSkip> : public BaseParser<Parser<SkipLogging::NoSkip>> {
+class Parser<SkipLogging::NoSkip> : private BaseParser<Parser<SkipLogging::NoSkip>> {
     public:
     Parser(FeedHandler<Parser<SkipLogging::NoSkip>>& feedhandler)
         : BaseParser(feedhandler)
@@ -122,12 +122,10 @@ class Parser<SkipLogging::NoSkip> : public BaseParser<Parser<SkipLogging::NoSkip
         return true;
     }
     void addTickerToWatchlist(uint64_t tkr) {}
-    private:
-    //FeedHandler<Parser<SkipLogging::NoSkip>>& feedhandler_;
 };
 
 template<>
-class Parser<SkipLogging::Skip> : public BaseParser<Parser<SkipLogging::Skip>> {
+class Parser<SkipLogging::Skip> : private BaseParser<Parser<SkipLogging::Skip>> {
     public:
     Parser(FeedHandler<Parser>& feedhandler)
         : BaseParser(feedhandler)
@@ -156,7 +154,8 @@ class Parser<SkipLogging::Skip> : public BaseParser<Parser<SkipLogging::Skip>> {
                     deleteOrder(msg);
                 break;
             case 'U':
-                replaceOrder(msg);
+                if (referenceExists(parseEightBytesSwap(msg + 11)))
+                    replaceOrder(msg);
                 break;
         }
         return true;
@@ -177,8 +176,6 @@ class Parser<SkipLogging::Skip> : public BaseParser<Parser<SkipLogging::Skip>> {
     }
     void replaceOrder(uint8_t*& msg) {
         uint64_t reference = parseEightBytesSwap(msg + 11);
-        if (references_.find(reference) == references_.end())
-            return;
         references_.erase(reference);
         uint64_t new_reference = parseEightBytesSwap(msg + 19);
         references_.insert(new_reference);

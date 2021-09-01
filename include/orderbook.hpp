@@ -1,22 +1,26 @@
-#ifndef BOOK_HPP
-#define BOOK_HPP
+#pragma once
 
 #include <map>
 #include <cstdint>
 #include <iostream>
+#include <string>
 #include <memory>
 #include <fstream>
-#include <boost/optional/optional.hpp>
-
-enum class Output { Logging, NoLogging };
 
 using price = uint64_t;
 using size = int64_t;
 
-struct BaseOrderBook {
+class OrderBook {
+    public:
+    OrderBook(std::string ticker) : 
+        outputstream_(std::make_unique<std::fstream>(std::fstream(ticker, std::ios_base::out))),
+        log(true)
+    {}
+    OrderBook() {}
     void addToBook(uint8_t& side, int32_t& shares, uint32_t& price) {
         if (side == 'B') bids_[price] += shares;
         else asks_[price] += shares;
+        if (log) output(side, shares, price);
     }
     void removeFromBook(uint8_t& side, int32_t& shares, uint32_t& price) {
         auto& book_side = (side == 'B' ? bids_ : asks_);
@@ -26,52 +30,13 @@ struct BaseOrderBook {
         itr->second -= shares;
         if (itr->second <= 0)
             book_side.erase(itr);
-    }
-    std::map<price, size> asks_, bids_;
-};
-
-template<Output T>
-class OrderBook : private BaseOrderBook {
-    public:
-    void updateBookAdd(uint8_t side, int32_t shares, uint32_t price) {
-        addToBook(side, shares, price);
-    }
-    void updateBookRemove(uint8_t side, int32_t shares, uint32_t price) {
-        removeFromBook(side, shares, price);
-    }
-    friend std::ostream& operator<<(std::ostream& lhs, const BaseOrderBook*& rhs);
-};
-
-template<>
-class OrderBook<Output::Logging> : private BaseOrderBook {
-    public:
-    OrderBook(uint64_t ticker, std::size_t len) :
-        outputstream_(std::fstream(std::string((char*)&ticker, len), std::ios_base::out)) 
-    {}
-    friend std::ostream& operator<<(std::ostream& lhs, const BaseOrderBook*& rhs);
-    void updateBookAdd(uint8_t side, int32_t shares, uint32_t price) {
-        addToBook(side, shares, price);
-        output(side, shares, price);
-    }
-    void updateBookRemove(uint8_t side, int32_t shares, uint32_t price) {
-        removeFromBook(side, shares, price);
-        output(side, -shares, price);
+        if (log) output(side, -shares, price);
     }
     private:
     void output(uint8_t side, int32_t shares, uint32_t price) {
-        outputstream_ << side << ',' << shares << ',' << price << '\n';
+        *(outputstream_.get()) << side << ',' << shares << ',' << price << '\n';
     }
-    std::fstream outputstream_;
+    std::map<price, size> asks_, bids_;
+    std::unique_ptr<std::fstream> outputstream_ = nullptr;
+    bool log = false;
 };
-
-inline std::ostream& operator<<(std::ostream& lhs, const BaseOrderBook*& rhs) {
-    lhs << " [BIDS]: " << std::endl;
-    for (auto itr = rhs->bids_.begin(); itr != rhs->bids_.end(); ++itr)
-        lhs << itr->second << std::endl;
-    lhs << " [ASKS]: " << std::endl;
-    for (auto itr = rhs->asks_.begin(); itr != rhs->asks_.end(); ++itr)
-        lhs << itr->second << std::endl;
-    return lhs;
-}
-
-#endif
