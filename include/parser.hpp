@@ -12,31 +12,9 @@ enum class SkipLogging { Skip, NoSkip };
 template <class derived>
 struct BaseParser {
     public:
-    bool parseMessage(uint8_t*& msg) {
-        uint8_t type = msg[0];
-        switch(type) {
-            case 'A':
-            case 'F':
-                static_cast<derived*>(this)->addOrder(msg);
-                break;
-            case 'E':
-                static_cast<derived*>(this)->executeOrder(msg);
-                break;
-            case 'C':
-                static_cast<derived*>(this)->executeOrderPrice(msg);
-                break;
-            case 'X':
-                static_cast<derived*>(this)->cancelOrder(msg);
-                break;
-            case 'D':
-                static_cast<derived*>(this)->deleteOrder(msg);
-                break;
-            case 'U':
-                static_cast<derived*>(this)->replaceOrder(msg);
-                break;
-        }
-        return true;
-    }
+        BaseParser(FeedHandler<derived>& fh) : feedhandler_(fh) {}
+    private:
+        FeedHandler<derived>& feedhandler_;
     protected:
     uint16_t parseTwoBytesSwap(const uint8_t* buffer) {
         return __builtin_bswap16(
@@ -72,16 +50,6 @@ struct BaseParser {
     uint64_t parseEightBytes(const uint8_t* buffer) {
         return *reinterpret_cast<const uint64_t*>(buffer);
     }
-};
-
-template <SkipLogging T> class Parser;
-
-template <>
-class Parser<SkipLogging::NoSkip> : public BaseParser<Parser<SkipLogging::NoSkip>> {
-    public:
-    Parser(FeedHandler<Parser<SkipLogging::NoSkip>>& feedhandler)
-        : feedhandler_(feedhandler)
-    {}
     void addOrder(uint8_t*& msg) {
         uint64_t ticker = parseEightBytes(msg + 24);
         uint64_t reference = parseEightBytesSwap(msg + 11);
@@ -119,60 +87,94 @@ class Parser<SkipLogging::NoSkip> : public BaseParser<Parser<SkipLogging::NoSkip
         uint32_t price = parseFourBytesSwap(msg + 31);
         feedhandler_.replaceOrder(reference, new_reference, num_shares, price);
     }    
+};
+
+template <SkipLogging T> class Parser;
+
+template <>
+class Parser<SkipLogging::NoSkip> : public BaseParser<Parser<SkipLogging::NoSkip>> {
+    public:
+    Parser(FeedHandler<Parser<SkipLogging::NoSkip>>& feedhandler)
+        : BaseParser(feedhandler)
+    {}
+    bool parseMessage(uint8_t*& msg) {
+        uint8_t type = msg[0];
+        switch(type) {
+            case 'A':
+            case 'F':
+                addOrder(msg);
+                break;
+            case 'E':
+                executeOrder(msg);
+                break;
+            case 'C':
+                executeOrderPrice(msg);
+                break;
+            case 'X':
+                cancelOrder(msg);
+                break;
+            case 'D':
+                deleteOrder(msg);
+                break;
+            case 'U':
+                replaceOrder(msg);
+                break;
+        }
+        return true;
+    }
     void addTickerToWatchlist(uint64_t tkr) {}
     private:
-    FeedHandler<Parser<SkipLogging::NoSkip>>& feedhandler_;
+    //FeedHandler<Parser<SkipLogging::NoSkip>>& feedhandler_;
 };
 
 template<>
 class Parser<SkipLogging::Skip> : public BaseParser<Parser<SkipLogging::Skip>> {
     public:
     Parser(FeedHandler<Parser>& feedhandler)
-        : feedhandler_(feedhandler)
+        : BaseParser(feedhandler), feedhandlerdir_(feedhandler)
     {}
-    void addTickerToWatchlist(uint64_t tkr) {
-        tickers_.insert(tkr);
+    bool parseMessage(uint8_t*& msg) {
+        uint8_t type = msg[0];
+        switch(type) {
+            case 'A':
+            case 'F':
+                checkTicker(msg);
+                break;
+            case 'E':
+                if (referenceExists(parseEightBytesSwap(msg + 11)))
+                    executeOrder(msg);
+                break;
+            case 'C':
+                if (referenceExists(parseEightBytesSwap(msg + 11)))
+                    executeOrderPrice(msg);
+                break;
+            case 'X':
+                if (referenceExists(parseEightBytesSwap(msg + 11)))
+                    cancelOrder(msg);
+                break;
+            case 'D':
+                if (referenceExists(parseEightBytesSwap(msg + 11)))
+                    deleteOrder(msg);
+                break;
+            case 'U':
+                replaceOrder(msg);
+                break;
+        }
+        return true;
     }
-    void addOrder(uint8_t*& msg) {
+    void checkTicker(uint8_t*& msg) {    
         uint64_t ticker = parseEightBytes(msg + 24);
         uint64_t reference = parseEightBytesSwap(msg + 11);
         if (tickers_.find(ticker) == tickers_.end())
             return;
         references_.insert(reference);
-        uint8_t side = msg[19];
-        int32_t num_shares = parseFourBytesSwap(msg + 20);
-        uint32_t price = parseFourBytesSwap(msg + 32);
-        feedhandler_.addOrder(
-            reference, side, num_shares, ticker, price
-        );
+        addOrder(msg);
     }
-    void executeOrder(uint8_t*& msg) {
-        uint64_t reference = parseEightBytesSwap(msg + 11);
-        if (references_.find(reference) == references_.end())
-            return;
-        int32_t num_shares = parseFourBytesSwap(msg + 19);
-        feedhandler_.executeOrder(reference, num_shares);
+    void addTickerToWatchlist(uint64_t tkr) {
+        tickers_.insert(tkr);
     }
-    void executeOrderPrice(uint8_t*& msg) {
-        uint64_t reference = parseEightBytesSwap(msg + 11);
-        if (references_.find(reference) == references_.end())
-            return;
-        int32_t num_shares = parseFourBytesSwap(msg + 19);
-        //uint32_t price = parseFourBytesSwap(buffer_ + 32);
-        feedhandler_.executeOrder(reference, num_shares);
-    }
-    void cancelOrder(uint8_t*& msg) {
-        uint64_t reference = parseEightBytesSwap(msg + 11);
-        if (references_.find(reference) == references_.end())
-            return;
-        int32_t num_shares = parseFourBytesSwap(msg + 19);
-        feedhandler_.cancelOrder(reference, num_shares);
-    }
-    void deleteOrder(uint8_t*& msg) {
-        uint64_t reference = parseEightBytesSwap(msg + 11);
-        if (references_.find(reference) == references_.end())
-            return;
-        feedhandler_.deleteOrder(reference);
+    bool referenceExists(uint64_t ref) {
+        return references_.find(ref) != references_.end();
     }
     void replaceOrder(uint8_t*& msg) {
         uint64_t reference = parseEightBytesSwap(msg + 11);
@@ -183,14 +185,14 @@ class Parser<SkipLogging::Skip> : public BaseParser<Parser<SkipLogging::Skip>> {
         references_.insert(new_reference);
         int32_t num_shares = parseFourBytesSwap(msg + 27);
         uint32_t price = parseFourBytesSwap(msg + 31);
-        feedhandler_.replaceOrder(reference, new_reference, num_shares, price);
+        feedhandlerdir_.replaceOrder(reference, new_reference, num_shares, price);
     }
     private:
     using tickers = uint64_t;
     using references = uint64_t;
     std::unordered_set<tickers> tickers_;
     std::unordered_set<references> references_;
-    FeedHandler<Parser<SkipLogging::Skip>>& feedhandler_;
+    FeedHandler<Parser<SkipLogging::Skip>>& feedhandlerdir_;
 };
 
 #endif
