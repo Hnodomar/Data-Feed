@@ -13,8 +13,6 @@ template <class derived>
 struct BaseParser {
     public:
         BaseParser(FeedHandler<derived>& fh) : feedhandler_(fh) {}
-    private:
-        FeedHandler<derived>& feedhandler_;
     protected:
     uint16_t parseTwoBytesSwap(const uint8_t* buffer) {
         return __builtin_bswap16(
@@ -87,6 +85,7 @@ struct BaseParser {
         uint32_t price = parseFourBytesSwap(msg + 31);
         feedhandler_.replaceOrder(reference, new_reference, num_shares, price);
     }    
+    FeedHandler<derived>& feedhandler_;
 };
 
 template <SkipLogging T> class Parser;
@@ -131,7 +130,7 @@ template<>
 class Parser<SkipLogging::Skip> : public BaseParser<Parser<SkipLogging::Skip>> {
     public:
     Parser(FeedHandler<Parser>& feedhandler)
-        : BaseParser(feedhandler), feedhandlerdir_(feedhandler)
+        : BaseParser(feedhandler)
     {}
     bool parseMessage(uint8_t*& msg) {
         uint8_t type = msg[0];
@@ -185,14 +184,14 @@ class Parser<SkipLogging::Skip> : public BaseParser<Parser<SkipLogging::Skip>> {
         references_.insert(new_reference);
         int32_t num_shares = parseFourBytesSwap(msg + 27);
         uint32_t price = parseFourBytesSwap(msg + 31);
-        feedhandlerdir_.replaceOrder(reference, new_reference, num_shares, price);
+        feedhandler_.replaceOrder(reference, new_reference, num_shares, price);
     }
     private:
     using tickers = uint64_t;
     using references = uint64_t;
     std::unordered_set<tickers> tickers_;
     std::unordered_set<references> references_;
-    FeedHandler<Parser<SkipLogging::Skip>>& feedhandlerdir_;
+
 };
 
 #endif
