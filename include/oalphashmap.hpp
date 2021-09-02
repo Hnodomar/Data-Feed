@@ -7,28 +7,26 @@
 template<typename Key, typename Value>
 class OALPHashMap {
 public:
+template <typename MapType, typename BucketType>
 class Iterator {
     public:
-    explicit Iterator(OALPHashMap* hashmap) {
+    explicit Iterator(MapType* hashmap) : hashmap_(hashmap) {
         skipEmptyBuckets();
     }
-    explicit Iterator(OALPHashMap* hashmap, std::size_t pos) 
-        : index_(pos) 
+    explicit Iterator(MapType* hashmap, std::size_t pos) 
+        : hashmap_(hashmap), index_(pos) 
     {}
-    void makeIndexEnd() {
-        index_ = buckets_.size();
-    }
     bool operator==(const Iterator& rhs) const {
         return rhs.index_ == index_;
     }
     bool operator!=(const Iterator& rhs) const {
         return !(rhs == *this);
     }
-    std::pair<Key, Value>* operator->() const {
-        return &buckets_[index_];
+    BucketType* operator->() const {
+        return &(hashmap_->buckets_[index_]);
     }
-    std::pair<Key, Value>& operator*() const {
-        return buckets_[index_];
+    BucketType& operator*() const {
+        return hashmap_->buckets_[index_];
     }
     Iterator& operator++() {
         ++index_;
@@ -38,11 +36,12 @@ class Iterator {
     std::size_t getIndex(){return index_;}
     private:
     void skipEmptyBuckets() {
-        while (buckets_[index_].first == empty_key_) {
-            if (index_ > buckets_.size()) break;
+        while (hashmap_->buckets_[index_].first == hashmap_->empty_key_) {
+            if (index_ > hashmap_->buckets_.size()) break;
             ++index_;
         }
     }
+    MapType* hashmap_;
     std::size_t index_;
 };
 
@@ -50,7 +49,7 @@ OALPHashMap(std::size_t initial_buckets) {
     std::size_t factor_of_two = 1; // allows faster bitwise masking as opposed to modulus hashing
     while(factor_of_two < initial_buckets)
         factor_of_two <<= 1; // *=2
-    buckets_.resize(factor_of_two, std::make_pair<Key, Value>(empty_key_, Value()));
+    buckets_.resize(factor_of_two, std::make_pair(empty_key_, Value()));
 }
 OALPHashMap(const OALPHashMap& rhs, std::size_t initial_buckets)
     : OALPHashMap(initial_buckets) {
@@ -58,51 +57,62 @@ OALPHashMap(const OALPHashMap& rhs, std::size_t initial_buckets)
         insert(*itr);
 }
 
-Iterator begin() {
-    return Iterator(this);
+using Iter = Iterator<OALPHashMap, std::pair<Key, Value>>;
+
+Iter begin() {
+    return Iter(this);
 }
 
-Iterator end() {
-    return Iterator(this, size());
+Iter end() {
+    return Iter(this, buckets_.size());
+}
+
+using ConstIterator = Iterator<const OALPHashMap, const std::pair<Key, Value>>;
+
+ConstIterator end() const {
+    return ConstIterator(this, buckets_.size());
+}
+
+ConstIterator begin() const {
+    return ConstIterator(this, buckets_.size());
 }
 
 std::size_t size() const {
     return map_size_;
 }
 
-std::pair<Iterator, bool> insert(value& val) {
-    return emplace(value.first, value.second);
+std::pair<Iter, bool> insert(const std::pair<Key, Value>& val) {
+    return emplace(val.first, val.second);
+}
+
+std::pair<Iter, bool> insert(std::pair<Key, Value>&& val) {
+    return emplace(val.first, std::move(val.second));
 }
 
 template<typename... Args>
-std::pair<Iterator, bool> emplace(Key key, Args&&... args) { //https://en.wikipedia.org/wiki/Linear_probing#Insertion
-    if ((map_size_ + 1) * 2 > buckets_.size()) { //50% load factor threshold
-        
-    }
+std::pair<Iter, bool> emplace(Key key, Args&&... args) { //https://en.wikipedia.org/wiki/Linear_probing#Insertion
+    checkIfReserveNeeded();
     std::size_t bucket_index = getHashIndex(key);
     for(;;) {
         if (buckets_[bucket_index].first == empty_key_) {
             buckets_[bucket_index].first = key;
             buckets_[bucket_index].second = Value(std::forward<Args>(args)...);
             map_size_++;
-            return std::make_pair(Iterator(this, bucket_index), true);
+            return std::make_pair(Iter(this, bucket_index), true);
         }
         else if (buckets_[bucket_index].first == key)
-            return std::make_pair(Iterator(this, bucket_index), false);
+            return std::make_pair(Iter(this, bucket_index), false);
         else
             bucket_index = iterateLinearProbe(bucket_index);
     }
 }
-
-void reserve(std::size_t next_size) {
-    if (next_size * 2 > buckets_.size()) {//50% load-factor
-        OALPHashMap temp(*this, buckets_.size() * 2);
-        swap(temp);
-    }
-}
  
-void erase(Iterator itr) { //https://en.wikipedia.org/wiki/Linear_probing#Deletion
-    std::size_t probe_index = iterateLinearProbe(itr.idx);
+void checkIfReserveNeeded() {
+    reserve(map_size_ + 1);
+}
+
+void erase(Iter itr) { //https://en.wikipedia.org/wiki/Linear_probing#Deletion
+    std::size_t probe_index = iterateLinearProbe(itr.getIndex());
     std::size_t erase_index = itr.getIndex();
     for (;;) {
         if (buckets_[probe_index].first == empty_key_) {
@@ -118,15 +128,22 @@ void erase(Iterator itr) { //https://en.wikipedia.org/wiki/Linear_probing#Deleti
     }
 }
 
-Iterator find(Key key) { //https://en.wikipedia.org/wiki/Linear_probing#Search
+Iter find(Key key) { //https://en.wikipedia.org/wiki/Linear_probing#Search
     std::size_t probe_index = getHashIndex(key);
     for (;;) {
         if (buckets_[probe_index].first == key)
-            return Iterator(this, key);
+            return Iter(this, key);
         if (buckets_[probe_index].first == empty_key_)
             return end();
         probe_index = iterateLinearProbe(probe_index);
     }   
+}
+
+void reserve(std::size_t next_size) {
+    if (next_size * 2 > buckets_.size()) { //50% load-factor
+        OALPHashMap temp(*this, buckets_.size() * 2);
+        swap(temp);
+    }
 }
 
 private:
