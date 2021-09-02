@@ -52,12 +52,26 @@ def readFile(plotFunction, num_levels): #faster than pandas when iterating over 
         levels_change = False
         for line in file:
             temp = [n for n in line.strip().split(',')]
-            if temp[0] == 'B':
-                levels_change = checkLevels(levels['bids'], float(temp[2]) / 10000, int(temp[1]), num_levels, temp[0])
+            if temp[1] == 'B':
+                levels_change = checkLevels(
+                    levels['bids'], 
+                    float(temp[3]) / 10000, 
+                    int(temp[2]), 
+                    num_levels, 
+                    temp[1]
+                )
             else:
-                levels_change = checkLevels(levels['asks'], float(temp[2]) / 10000, int(temp[1]), num_levels, temp[0])
+                levels_change = checkLevels(
+                    levels['asks'], 
+                    float(temp[3]) / 10000, 
+                    int(temp[2]), 
+                    num_levels, 
+                    temp[1]
+                )
             if levels_change:
-               plotFunction(levels)
+                plotFunction(levels, temp[0])
+                print("ASKS: {}".format(len(levels['asks'])))
+                print("BIDS: {}".format(len(levels['bids'])))
         print(levels)
 
 class dynamicBarPlot():
@@ -69,6 +83,8 @@ class dynamicBarPlot():
         self.minx = 200000
         self.maxx = -1
         self.width = 0.05
+        self.ax.set_xlabel("Price [USD]")
+        self.ax.set_ylabel("Order Depth")
 
     def getBounds(self, levels):
         ask_prices = np.array(list(levels['asks']))
@@ -100,7 +116,30 @@ class dynamicBarPlot():
             except:
                 return 0
 
-    def onRunning(self, levels):
+    def formatZero(self, num):
+        if num < 10:
+            return '0' + str(num) + ':'
+        else:
+            return str(num) + ':'
+
+
+    def formatTime(self, timestamp):
+        time = ''
+        timestamp /= 10**9
+        hrs = int(timestamp / 3600)
+        time += str(hrs) + ':'
+        timestamp %= 3600
+        time += self.formatZero(int(timestamp / 60))
+        timestamp %= 60
+        time += self.formatZero(int(timestamp))
+        time = time[:-1]
+        if hrs < 12:
+            time += ' AM'
+        else:
+            time += ' PM'
+        return time
+
+    def onRunning(self, levels, timestamp):
         ask_sizes = list(levels['asks'].values())
         bid_sizes = list(levels['bids'].values())
         ask_prices = list(levels['asks'])
@@ -110,6 +149,9 @@ class dynamicBarPlot():
             list(levels['bids'])
         )
         self.ax.clear()
+        self.ax.set_xlabel("Price [USD]")
+        self.ax.set_ylabel("Order Depth")
+        self.ax.set_title(self.formatTime(int(timestamp)))
         width = self.getWidth(xdata)
         if len(ask_sizes) != 0:
             self.ax.bar(ask_prices, ask_sizes, width=width, color='red')
