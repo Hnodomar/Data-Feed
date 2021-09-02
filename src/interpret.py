@@ -44,7 +44,6 @@ def checkLevels(dict, price, shares, num_levels, side):
     return False
 
 def readFile(plotFunction, num_levels): #faster than pandas when iterating over every row of data
-    hl, = plt.plot([], [])
     with open('../build/AAPL') as file:
         levels = {
             'bids': {}, 

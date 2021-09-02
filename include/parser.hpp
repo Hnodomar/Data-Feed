@@ -48,42 +48,48 @@ struct BaseParser {
     uint64_t parseEightBytes(const uint8_t* buffer) {
         return *reinterpret_cast<const uint64_t*>(buffer);
     }
-    void addOrder(uint8_t*& msg) {
+    void addOrder(const uint8_t*& msg) {
         uint64_t ticker = parseEightBytes(msg + 24);
         uint64_t reference = parseEightBytesSwap(msg + 11);
+        uint64_t timestamp = parseSixBytesSwap(msg + 5);
         uint8_t side = msg[19];
         int32_t num_shares = parseFourBytesSwap(msg + 20);
         uint32_t price = parseFourBytesSwap(msg + 32);
         feedhandler_.addOrder(
-            reference, side, num_shares, ticker, price
+            reference, side, num_shares, ticker, price, timestamp
         );
     }
-    void executeOrder(uint8_t*& msg) {
+    void executeOrder(const uint8_t*& msg) {
         uint64_t reference = parseEightBytesSwap(msg + 11);
+        uint64_t timestamp = parseSixBytesSwap(msg + 5);
         int32_t num_shares = parseFourBytesSwap(msg + 19);
-        feedhandler_.executeOrder(reference, num_shares);
+        feedhandler_.executeOrder(reference, num_shares, timestamp);
     }
-    void executeOrderPrice(uint8_t*& msg) {
+    void executeOrderPrice(const uint8_t*& msg) {
         uint64_t reference = parseEightBytesSwap(msg + 11);
+        uint64_t timestamp = parseSixBytesSwap(msg + 5);
         int32_t num_shares = parseFourBytesSwap(msg + 19);
         //uint32_t price = parseFourBytesSwap(buffer_ + 32);
-        feedhandler_.executeOrder(reference, num_shares);
+        feedhandler_.executeOrder(reference, num_shares, timestamp);
     }
-    void cancelOrder(uint8_t*& msg) {
+    void cancelOrder(const uint8_t*& msg) {
         uint64_t reference = parseEightBytesSwap(msg + 11);
+        uint64_t timestamp = parseSixBytesSwap(msg + 5);
         int32_t num_shares = parseFourBytesSwap(msg + 19);
-        feedhandler_.cancelOrder(reference, num_shares);
+        feedhandler_.cancelOrder(reference, num_shares, timestamp);
     }
-    void deleteOrder(uint8_t*& msg) {
+    void deleteOrder(const uint8_t*& msg) {
         uint64_t reference = parseEightBytesSwap(msg + 11);
-        feedhandler_.deleteOrder(reference);
+        uint64_t timestamp = parseSixBytesSwap(msg + 5);
+        feedhandler_.deleteOrder(reference, timestamp);
     }
-    void replaceOrder(uint8_t*& msg) {
+    void replaceOrder(const uint8_t*& msg) {
         uint64_t reference = parseEightBytesSwap(msg + 11);
         uint64_t new_reference = parseEightBytesSwap(msg + 19);
+        uint64_t timestamp = parseSixBytesSwap(msg + 5);
         int32_t num_shares = parseFourBytesSwap(msg + 27);
         uint32_t price = parseFourBytesSwap(msg + 31);
-        feedhandler_.replaceOrder(reference, new_reference, num_shares, price);
+        feedhandler_.replaceOrder(reference, new_reference, num_shares, price, timestamp);
     }    
     FeedHandler<derived>& feedhandler_;
 };
@@ -96,8 +102,8 @@ class Parser<SkipLogging::NoSkip> : private BaseParser<Parser<SkipLogging::NoSki
     Parser(FeedHandler<Parser<SkipLogging::NoSkip>>& feedhandler)
         : BaseParser(feedhandler)
     {}
-    bool parseMessage(uint8_t*& msg) {
-        uint8_t type = msg[0];
+    bool parseMessage(const uint8_t*& msg) {
+        const uint8_t type = msg[0];
         switch(type) {
             case 'A':
             case 'F':
@@ -130,8 +136,8 @@ class Parser<SkipLogging::Skip> : private BaseParser<Parser<SkipLogging::Skip>> 
     Parser(FeedHandler<Parser>& feedhandler)
         : BaseParser(feedhandler)
     {}
-    bool parseMessage(uint8_t*& msg) {
-        uint8_t type = msg[0];
+    bool parseMessage(const uint8_t*& msg) {
+        const uint8_t type = msg[0];
         switch(type) {
             case 'A':
             case 'F':
@@ -160,7 +166,7 @@ class Parser<SkipLogging::Skip> : private BaseParser<Parser<SkipLogging::Skip>> 
         }
         return true;
     }
-    void checkTicker(uint8_t*& msg) {    
+    void checkTicker(const uint8_t*& msg) {    
         uint64_t ticker = parseEightBytes(msg + 24);
         uint64_t reference = parseEightBytesSwap(msg + 11);
         if (tickers_.find(ticker) == tickers_.end())
@@ -168,20 +174,21 @@ class Parser<SkipLogging::Skip> : private BaseParser<Parser<SkipLogging::Skip>> 
         references_.insert(reference);
         addOrder(msg);
     }
-    void addTickerToWatchlist(uint64_t tkr) {
+    void addTickerToWatchlist(const uint64_t tkr) {
         tickers_.insert(tkr);
     }
-    bool referenceExists(uint64_t ref) {
+    bool referenceExists(const uint64_t ref) {
         return references_.find(ref) != references_.end();
     }
-    void replaceOrder(uint8_t*& msg) {
+    void replaceOrder(const uint8_t*& msg) {
         uint64_t reference = parseEightBytesSwap(msg + 11);
         references_.erase(reference);
         uint64_t new_reference = parseEightBytesSwap(msg + 19);
         references_.insert(new_reference);
+        uint64_t timestamp = parseSixBytesSwap(msg + 5);
         int32_t num_shares = parseFourBytesSwap(msg + 27);
         uint32_t price = parseFourBytesSwap(msg + 31);
-        feedhandler_.replaceOrder(reference, new_reference, num_shares, price);
+        feedhandler_.replaceOrder(reference, new_reference, num_shares, price, timestamp);
     }
     private:
     using tickers = uint64_t;

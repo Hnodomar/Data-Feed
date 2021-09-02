@@ -17,13 +17,13 @@ class Iterator {
         : hashmap_(hashmap), index_(pos) 
     {}
     bool operator==(const Iterator& rhs) const {
-        return rhs.index_ == index_;
+        return rhs.hashmap_ == hashmap_ && rhs.index_ == index_;
     }
     bool operator!=(const Iterator& rhs) const {
         return !(rhs == *this);
     }
     BucketType* operator->() const {
-        return &(hashmap_->buckets_[index_]);
+        return &hashmap_->buckets_[index_];
     }
     BucketType& operator*() const {
         return hashmap_->buckets_[index_];
@@ -41,8 +41,8 @@ class Iterator {
             ++index_;
         }
     }
-    MapType* hashmap_;
-    std::size_t index_;
+    MapType* hashmap_ = nullptr;
+    std::size_t index_ = 0;
 };
 
 OALPHashMap(std::size_t initial_buckets) {
@@ -74,7 +74,7 @@ ConstIterator end() const {
 }
 
 ConstIterator begin() const {
-    return ConstIterator(this, buckets_.size());
+    return ConstIterator(this);
 }
 
 std::size_t size() const {
@@ -112,8 +112,8 @@ void checkIfReserveNeeded() {
 }
 
 void erase(Iter itr) { //https://en.wikipedia.org/wiki/Linear_probing#Deletion
-    std::size_t probe_index = iterateLinearProbe(itr.getIndex());
     std::size_t erase_index = itr.getIndex();
+    std::size_t probe_index = iterateLinearProbe(erase_index);
     for (;;) {
         if (buckets_[probe_index].first == empty_key_) {
             buckets_[erase_index].first = empty_key_;
@@ -132,11 +132,15 @@ Iter find(Key key) { //https://en.wikipedia.org/wiki/Linear_probing#Search
     std::size_t probe_index = getHashIndex(key);
     for (;;) {
         if (buckets_[probe_index].first == key)
-            return Iter(this, key);
+            return Iter(this, probe_index);
         if (buckets_[probe_index].first == empty_key_)
             return end();
         probe_index = iterateLinearProbe(probe_index);
     }   
+}
+
+ConstIterator find(Key key) const {
+    return const_cast<OALPHashMap*>(this)->find(key);
 }
 
 void reserve(std::size_t next_size) {

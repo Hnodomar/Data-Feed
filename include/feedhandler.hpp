@@ -19,10 +19,9 @@ class FeedHandler {
     using ref = uint64_t;
     public:
         FeedHandler(): 
-            parser_(*this), tickers_(16384, 0),
-            orders_(16000000, std::numeric_limits<uint64_t>::max())
+            parser_(*this), tickers_(16384), orders_(16000000)
         {}
-        void parseMessage(uint8_t* msg) {
+        void parseMessage(const uint8_t* msg) {
             parser_.parseMessage(msg);
         }
         void setupLoggingBooks(char* tickers[], int num_tickers) {
@@ -38,7 +37,7 @@ class FeedHandler {
             }
         }
         void addOrder(uint64_t reference, uint8_t side, 
-        int32_t shares, uint64_t ticker, uint32_t price) {
+        int32_t shares, uint64_t ticker, uint32_t price, uint64_t timestamp) {
             auto itr = tickers_.find(ticker);
             if (itr == tickers_.end()) {
                 order_books_.emplace_back(OrderBook());
@@ -46,41 +45,52 @@ class FeedHandler {
             }
             uint16_t book_id = itr->second;
             auto& bookv = order_books_[book_id];
-            bookv.addToBook(side, shares, price);
+            bookv.addToBook(side, shares, price, timestamp);
             orders_.emplace(
                 reference, Order(price, shares, book_id, side)
             );
         }
-        void executeOrder(uint64_t reference, int32_t num_shares) {
+        void executeOrder(uint64_t reference, int32_t num_shares, uint64_t timestamp) {
             auto orders_itr = orders_.find(reference);
             if (orders_itr == orders_.end()) return;
             auto& bookv = order_books_[orders_itr->second.book_id];
-            bookv.removeFromBook(orders_itr->second.side, num_shares, orders_itr->second.price);
+            bookv.removeFromBook(
+                orders_itr->second.side, 
+                num_shares, 
+                orders_itr->second.price,
+                timestamp
+            );
             orders_itr->second.shares -= num_shares;
             if (orders_itr->second.shares <= 0) 
                 orders_.erase(orders_itr);
         }
-        void cancelOrder(uint64_t reference, int32_t num_shares) {
+        void cancelOrder(uint64_t reference, int32_t num_shares, uint64_t timestamp) {
             auto orders_itr = orders_.find(reference);
             if (orders_itr == orders_.end()) return;
             auto& bookv = order_books_[orders_itr->second.book_id];
-            bookv.removeFromBook(orders_itr->second.side, num_shares, orders_itr->second.price);
+            bookv.removeFromBook(
+                orders_itr->second.side, 
+                num_shares, 
+                orders_itr->second.price,
+                timestamp
+            );
             orders_itr->second.shares -= num_shares;
             if (orders_itr->second.shares <= 0) orders_.erase(orders_itr);
         }
-        void deleteOrder(uint64_t reference) {
+        void deleteOrder(uint64_t reference, uint64_t timestamp) {
             auto orders_itr = orders_.find(reference);
             if (orders_itr == orders_.end()) return;
             auto& bookv = order_books_[orders_itr->second.book_id];
             bookv.removeFromBook(
                 orders_itr->second.side,
                 orders_itr->second.shares,
-                orders_itr->second.price
+                orders_itr->second.price,
+                timestamp
             );
             orders_.erase(orders_itr);
         }
         void replaceOrder(uint64_t reference, uint64_t new_reference,
-        int32_t num_shares, uint32_t price) {
+        int32_t num_shares, uint32_t price, uint64_t timestamp) {
             auto orders_itr = orders_.find(reference);
             if (orders_itr == orders_.end())
                 return;
@@ -91,12 +101,14 @@ class FeedHandler {
             bookv.removeFromBook(
                 orders_itr->second.side,
                 orders_itr->second.shares,
-                orders_itr->second.price
+                orders_itr->second.price,
+                timestamp
             );
             bookv.addToBook(
                 orders_itr->second.side,
                 num_shares,
-                price
+                price,
+                timestamp
             );
             orders_.erase(orders_itr);
         }
