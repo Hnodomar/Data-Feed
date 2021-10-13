@@ -124,6 +124,8 @@ class Parser<SkipLogging::NoSkip> : private BaseParser<Parser<SkipLogging::NoSki
             case 'U':
                 replaceOrder(msg);
                 break;
+            default:
+                break;
         }
         return true;
     }
@@ -162,6 +164,8 @@ class Parser<SkipLogging::Skip> : private BaseParser<Parser<SkipLogging::Skip>> 
             case 'U':
                 if (referenceExists(parseEightBytesSwap(msg + 11)))
                     replaceOrder(msg);
+                break;
+            default:
                 break;
         }
         return true;
