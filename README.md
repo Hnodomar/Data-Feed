@@ -14,4 +14,6 @@ Currently, all messages that modify order books are supported:
 * Order Deleted
 * Order Replaced
 
-## Performance
+## Features Planned:
+
+* Proper low latency logging capabilities, easily interfacable with any potential usage.
