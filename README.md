@@ -17,3 +17,4 @@ Currently, all messages that modify order books are supported:
 ## Features Planned:
 
 * Proper low latency logging capabilities, easily interfacable with any potential usage.
+* Support for all ITCH 5.0 message types.
